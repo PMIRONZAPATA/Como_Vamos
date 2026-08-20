@@ -126,6 +126,7 @@
 <div class="links">
   <a href="https://metabase.prod.monline/question/34412-charla-regiones-control-ntc" target="_blank">↻ Refrescar farolas (34412)</a>
   <a href="https://metabase.prod.monline/question/34413-charla-regiones-graficas" target="_blank">↻ Refrescar gráficas '26 vs '25 (34413)</a>
+  <a href="#" onclick="if(confirm('¿Borrar todos los datos guardados en este navegador?')) clearStorage(); return false;" style="color:#C00000;">🗑 Borrar datos guardados</a>
   <a href="https://mstr.cc.mercadona.com/MSTRNEis/servlet/mstrWeb?Server=PVVIL0632.CCV.MERCADONA.COM&Project=Costes&Port=0&evt=4001&src=mstrWeb.4001&visMode=0&reportViewMode=1&reportID=041311BB4F46C145D1BB42A8D48D26ED" target="_blank">↻ Refrescar / reejecutar venta en EIS</a>
 </div>
 
@@ -182,6 +183,41 @@ let dataServicio = [];
 let dataVenta = [];
 let dataGraficas = [];
 let currentTableData = null; // {headers:[...], rows:[[...]]} para exportar
+
+const STORAGE_KEY = 'como_vamos_data_v1';
+
+function saveToStorage(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      dataServicio, dataVenta, dataGraficas, dataObjetivosCustom,
+      savedAt: new Date().toISOString()
+    }));
+  }catch(e){
+    console.warn('No se pudo guardar en localStorage (puede que los datos sean muy grandes):', e);
+  }
+}
+
+function loadFromStorage(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const parsed = JSON.parse(raw);
+    dataServicio = parsed.dataServicio || [];
+    dataVenta = parsed.dataVenta || [];
+    dataGraficas = parsed.dataGraficas || [];
+    dataObjetivosCustom = parsed.dataObjetivosCustom || {};
+    return dataServicio.length > 0;
+  }catch(e){
+    console.warn('No se pudo leer localStorage:', e);
+    return false;
+  }
+}
+
+function clearStorage(){
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+window.clearStorage = clearStorage;
 
 const poblaciones = {
   "3410":"Benaguasil","4472":"La Vall d'Uixó","4727":"Buñol","2875":"Benicarló",
@@ -344,6 +380,7 @@ document.getElementById('file-servicio').addEventListener('change', e => {
   parseFileWithHeader(f, rows => {
     dataServicio = rows.map(normServicioRow).filter(r => r.centerId && r.anio);
     updateStatus('status-servicio', true, dataServicio.length + ' filas');
+    saveToStorage();
     onDataChanged();
   });
 });
@@ -353,6 +390,7 @@ document.getElementById('file-venta').addEventListener('change', e => {
   parseFile(f, rawRows => {
     dataVenta = parseVentaRawRows(rawRows).filter(r => r.centro && r.anio);
     updateStatus('status-venta', true, dataVenta.length + ' filas');
+    saveToStorage();
     onDataChanged();
   });
 });
@@ -378,6 +416,7 @@ document.getElementById('file-graficas').addEventListener('change', e => {
   parseFileWithHeader(f, rows => {
     dataGraficas = rows.map(normGraficasRow).filter(r => r.region && r.anio);
     updateStatus('status-graficas', true, dataGraficas.length + ' filas');
+    saveToStorage();
     onDataChanged();
   });
 });
@@ -453,6 +492,7 @@ document.getElementById('file-objetivos').addEventListener('change', e => {
     Object.assign(dataObjetivosCustom, parsed);
     const anios = Object.keys(parsed).join(', ');
     updateStatus('status-objetivos', true, 'años: ' + anios);
+    saveToStorage();
     onDataChanged();
   });
 });
@@ -1398,6 +1438,17 @@ function renderEvolucion(out, region, anioBase){
 }
 
 window.exportCurrentTable = exportCurrentTable;
+
+// Restaurar datos guardados del navegador, si los hay
+(function initFromStorage(){
+  if(loadFromStorage()){
+    if(dataServicio.length) updateStatus('status-servicio', true, dataServicio.length + ' filas (guardadas)');
+    if(dataVenta.length) updateStatus('status-venta', true, dataVenta.length + ' filas (guardadas)');
+    if(dataGraficas.length) updateStatus('status-graficas', true, dataGraficas.length + ' filas (guardadas)');
+    if(Object.keys(dataObjetivosCustom).length) updateStatus('status-objetivos', true, 'años: ' + Object.keys(dataObjetivosCustom).join(', ') + ' (guardado)');
+    onDataChanged();
+  }
+})();
 </script>
 
 </body>

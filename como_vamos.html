@@ -785,9 +785,12 @@ function exportBtn(){
 
 function cssColorToHex(str){
   if(!str) return null;
+  if(str === 'transparent') return null;
   if(str.startsWith('#')) return str.replace('#','').toUpperCase().padEnd(6,'0');
-  const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
   if(!m) return null;
+  const alpha = m[4] !== undefined ? Number(m[4]) : 1;
+  if(alpha === 0) return null; // completamente transparente, sin relleno real
   return [1,2,3].map(i => Number(m[i]).toString(16).padStart(2,'0')).join('').toUpperCase();
 }
 

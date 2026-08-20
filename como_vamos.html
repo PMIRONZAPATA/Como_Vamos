@@ -5,6 +5,7 @@
 <title>Cómo vamos - Herramienta de charlas</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
   :root{
     --verde:#00AB61;
@@ -742,12 +743,93 @@ function exportBtn(){
   return `<button class="btn" onclick="exportCurrentTable()">⬇ Exportar a Excel</button>`;
 }
 
-function exportCurrentTable(){
-  if(!currentTableData){ alert('No hay tabla para exportar en esta pestaña.'); return; }
-  const ws = XLSX.utils.aoa_to_sheet([currentTableData.headers, ...currentTableData.rows]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Datos');
-  XLSX.writeFile(wb, currentTableData.filename || 'export.xlsx');
+function cssColorToHex(str){
+  if(!str) return null;
+  if(str.startsWith('#')) return str.replace('#','').toUpperCase().padEnd(6,'0');
+  const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if(!m) return null;
+  return [1,2,3].map(i => Number(m[i]).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
+async function exportCurrentTable(){
+  const table = document.querySelector('#panel-out table');
+  if(!table){
+    if(!currentTableData){ alert('No hay tabla para exportar en esta pestaña.'); return; }
+    const ws = XLSX.utils.aoa_to_sheet([currentTableData.headers, ...currentTableData.rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Datos');
+    XLSX.writeFile(wb, currentTableData.filename || 'export.xlsx');
+    return;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Datos');
+
+  const rows = Array.from(table.querySelectorAll('tr'));
+  let maxCols = 0;
+  rows.forEach(tr => {
+    let cols = 0;
+    Array.from(tr.children).forEach(td => cols += (Number(td.getAttribute('colspan'))||1));
+    maxCols = Math.max(maxCols, cols);
+  });
+
+  // Rejilla para resolver rowspan/colspan
+  const grid = Array.from({length: rows.length}, () => new Array(maxCols).fill(null));
+
+  rows.forEach((tr, rIdx) => {
+    let cIdx = 0;
+    Array.from(tr.children).forEach(td => {
+      while(grid[rIdx][cIdx] !== null) cIdx++;
+      const colspan = Number(td.getAttribute('colspan'))||1;
+      const rowspan = Number(td.getAttribute('rowspan'))||1;
+      const style = getComputedStyle(td);
+      const info = {
+        text: td.textContent.trim(),
+        bg: cssColorToHex(style.backgroundColor),
+        color: cssColorToHex(style.color),
+        bold: parseInt(style.fontWeight) >= 600 || style.fontWeight === 'bold',
+        italic: style.fontStyle === 'italic',
+        align: style.textAlign
+      };
+      for(let r=0; r<rowspan; r++){
+        for(let c=0; c<colspan; c++){
+          grid[rIdx+r][cIdx+c] = (r===0 && c===0) ? info : {merged:true};
+        }
+      }
+      if(rowspan>1 || colspan>1){
+        ws.mergeCells(rIdx+1, cIdx+1, rIdx+rowspan, cIdx+colspan);
+      }
+      cIdx += colspan;
+    });
+  });
+
+  grid.forEach((rowArr, rIdx) => {
+    rowArr.forEach((info, cIdx) => {
+      if(!info || info.merged) return;
+      const cell = ws.getCell(rIdx+1, cIdx+1);
+      cell.value = info.text;
+      cell.alignment = { horizontal: info.align === 'left' ? 'left' : 'center', vertical:'middle', wrapText:true };
+      cell.font = {
+        bold: !!info.bold,
+        italic: !!info.italic,
+        color: info.color ? { argb: 'FF'+info.color } : undefined
+      };
+      if(info.bg && info.bg !== 'FFFFFF' && info.bg !== 'transparent'){
+        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF'+info.bg} };
+      }
+    });
+  });
+
+  ws.columns.forEach(col => { col.width = 20; });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (currentTableData && currentTableData.filename) || 'export.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function renderNacionalVenta(out, regionSel, anioSel){

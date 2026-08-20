@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Cómo vamos - Herramienta de charlas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --verde:#00AB61;
+    --verde-suave:#E2EFDA;
+    --rojo:#C00000;
+    --gris-fondo:#F6F7F5;
+    --gris-linea:#DADFDC;
+    --texto:#1F2A24;
+    --azul-25:#8AA0C7;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background:var(--gris-fondo);
+    color:var(--texto);
+    margin:0;
+    padding:24px;
+  }
+  h1{ font-size:22px; margin:0 0 4px 0; }
+  .sub{ color:#5b665f; font-size:13px; margin-bottom:16px; }
+  .links{ font-size:12px; margin-bottom:20px; }
+  .links a{ color:var(--verde); text-decoration:none; font-weight:600; margin-right:16px; }
+  .links a:hover{ text-decoration:underline; }
+  .panel{
+    background:#fff;
+    border:1px solid var(--gris-linea);
+    border-radius:10px;
+    padding:18px 20px;
+    margin-bottom:20px;
+  }
+  .panel h2{
+    font-size:15px;
+    margin:0 0 12px 0;
+    color:var(--verde);
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .upload-row{ display:flex; gap:16px; flex-wrap:wrap; }
+  .upload-box{
+    flex:1; min-width:260px;
+    border:2px dashed var(--gris-linea);
+    border-radius:8px;
+    padding:16px;
+    text-align:center;
+    cursor:pointer;
+    transition:.15s;
+    font-size:13px;
+  }
+  .upload-box:hover{ border-color:var(--verde); background:#fafffc; }
+  .upload-box.loaded{ border-color:var(--verde); background:var(--verde-suave); }
+  .upload-box input{ display:none; }
+  .upload-box .title{ font-weight:600; margin-bottom:4px; }
+  .upload-box .status{ font-size:12px; color:#5b665f; margin-top:6px; }
+  .controls{ display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:14px; }
+  select, .tabbtn, .btn{
+    font-size:13px; padding:7px 10px; border-radius:6px;
+    border:1px solid var(--gris-linea); background:#fff; cursor:pointer;
+  }
+  .btn.primary{ background:var(--verde); color:#fff; border-color:var(--verde); font-weight:600; }
+  .tabs{ display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .tabbtn{ cursor:pointer; font-weight:600; }
+  .tabbtn.active{ background:var(--verde); color:#fff; border-color:var(--verde); }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{ background:var(--verde); color:#fff; padding:8px 6px; text-align:center; font-size:12px; }
+  tbody td{ padding:6px; text-align:center; border-bottom:1px solid var(--gris-linea); }
+  tbody td.left{ text-align:left; }
+  tr.zona-row td{ background:var(--verde-suave); font-weight:600; }
+  tr.total-row td{ background:#D9EAD3; font-weight:700; }
+  tr.selected-row td{ background:#FFF3CD; font-weight:700; }
+  .bad{ color:var(--rojo); font-weight:700; }
+  .poblacion{ font-style:italic; color:#5b665f; font-size:12px; }
+
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:14px; }
+  .card{ border:2px solid var(--verde); border-radius:10px; padding:14px 16px; background:#fff; }
+  .card h3{ margin:0 0 10px 0; font-size:13px; color:var(--verde); text-transform:uppercase; }
+  .metric-row{ display:flex; justify-content:space-between; padding:4px 0; font-size:14px; }
+  .metric-row .media{ font-style:italic; color:#5b665f; font-size:12px; }
+
+  .empty{ text-align:center; color:#888; padding:40px 0; font-size:13px; }
+  .note{ font-size:11px; color:#888; margin-top:8px; }
+
+  .chart-controls{ display:flex; gap:12px; margin-bottom:14px; align-items:center; }
+  .legend{ display:flex; gap:18px; font-size:12px; margin-bottom:8px; }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend .dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .chart-copy-target{ cursor:zoom-in; }
+  .zoom-overlay{
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;
+  }
+  .zoom-overlay.active{ display:flex; }
+  .zoom-box{
+    background:#fff; border-radius:10px; padding:24px; max-width:90vw; max-height:90vh;
+    overflow:auto; position:relative;
+  }
+  .zoom-close{
+    position:absolute; top:8px; right:12px; font-size:22px; cursor:pointer; color:#888; border:none; background:none;
+  }
+  .zoom-box svg{ width:min(90vw, 900px) !important; height:auto; }
+</style>
+</head>
+<body>
+
+<div class="zoom-overlay" id="zoom-overlay">
+  <div class="zoom-box">
+    <button class="zoom-close" id="zoom-close">✕</button>
+    <div id="zoom-content"></div>
+  </div>
+</div>
+
+
+<h1>Cómo vamos · Herramienta de charlas</h1>
+<div class="sub">Sube los datos de Metabase/EIS y genera las tablas, tarjetas y gráficas de la charla regional.</div>
+<div class="links">
+  <a href="https://metabase.prod.monline/question/34412-charla-regiones-control-ntc" target="_blank">↻ Refrescar farolas (34412)</a>
+  <a href="https://metabase.prod.monline/question/34413-charla-regiones-graficas" target="_blank">↻ Refrescar gráficas '26 vs '25 (34413)</a>
+  <a href="https://mstr.cc.mercadona.com/MSTRNEis/servlet/mstrWeb?Server=PVVIL0632.CCV.MERCADONA.COM&Project=Costes&Port=0&evt=4001&src=mstrWeb.4001&visMode=0&reportViewMode=1&reportID=041311BB4F46C145D1BB42A8D48D26ED" target="_blank">↻ Refrescar / reejecutar venta en EIS</a>
+</div>
+
+<div class="panel">
+  <h2>1. Cargar datos</h2>
+  <div class="upload-row">
+    <div class="upload-box" id="box-servicio">
+      <div class="title">Servicio (Metabase 34412)</div>
+      <div>Año, Mes, Center ID, Región, Zona, Tienda, Fecha Apertura NTC, Es Veterana, % LNS, Pendientes, Pedido completo, Pedido en perfecto estado, Retrasos, Hora fin TM, Hora fin TT, Pedido a tiempo, Productividad</div>
+      <input type="file" id="file-servicio" accept=".csv,.xlsx,.xls">
+      <div class="status" id="status-servicio">Sin cargar</div>
+    </div>
+    <div class="upload-box" id="box-venta">
+      <div class="title">Venta física (EIS)</div>
+      <div>Centro, Mes, Dirección Regional, Zona Coordinador, Vtas Ext C/IVA</div>
+      <input type="file" id="file-venta" accept=".csv,.xlsx,.xls">
+      <div class="status" id="status-venta">Sin cargar</div>
+    </div>
+    <div class="upload-box" id="box-graficas">
+      <div class="title">Gráficas '26 vs '25 (Metabase 34413)</div>
+      <div>anio, mes, region, pct_Pedido_completo, pct_Pedido_en_perfecto_estado, pct_Pedido_a_tiempo, pct_Pedido_de_10</div>
+      <input type="file" id="file-graficas" accept=".csv,.xlsx,.xls">
+      <div class="status" id="status-graficas">Sin cargar</div>
+    </div>
+    <div class="upload-box" id="box-objetivos">
+      <div class="title">Objetivos por Región (opcional, para años futuros como 2027)</div>
+      <div>Año, Región, Coordinador, Nº Tiendas Fin Año, Obj. Venta NTC MM€ — 2026 ya viene precargado</div>
+      <input type="file" id="file-objetivos" accept=".csv,.xlsx,.xls">
+      <div class="status" id="status-objetivos">2026 precargado</div>
+    </div>
+  </div>
+  <div class="controls" id="global-controls" style="display:none;">
+    <label>Región: <select id="sel-region"></select></label>
+    <label>Mes: <select id="sel-mes"></select></label>
+  </div>
+</div>
+
+<div class="tabs" id="tabs" style="display:none;">
+  <div class="tabbtn active" data-tab="nacional">Nacional (farolas)</div>
+  <div class="tabbtn" data-tab="nacional-venta">Nacional (venta)</div>
+  <div class="tabbtn" data-tab="tarjetas">Región vs Media</div>
+  <div class="tabbtn" data-tab="tienda-servicio">Tienda/Zona (farolas)</div>
+  <div class="tabbtn" data-tab="tienda-venta">Tienda/Zona (venta)</div>
+  <div class="tabbtn" data-tab="evolucion">Evolución '26 vs '25</div>
+  <div class="tabbtn" data-tab="venta-region">Venta Región (resumen)</div>
+</div>
+
+<div class="panel" id="panel-out">
+  <div class="empty">Sube al menos el archivo de Servicio para empezar.</div>
+</div>
+
+<script>
+let dataServicio = [];
+let dataVenta = [];
+let dataGraficas = [];
+let currentTableData = null; // {headers:[...], rows:[[...]]} para exportar
+
+const poblaciones = {
+  "3410":"Benaguasil","4472":"La Vall d'Uixó","4727":"Buñol","2875":"Benicarló",
+  "2762":"Sagunt","4385":"Vila-real","4558":"Almassora","2465":"Dénia",
+  "4429":"Benissa","4425":"Castelló de la Plana","3532":"Xàtiva",
+  "4478":"Ontinyent","4665":"Teruel"
+};
+
+const objetivos = { lns:0.40, pc:0.96, pe:1.16, ret:2.0, at:0.36, prod:0.34 };
+
+function toNum(v){
+  if(v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+function parseFile(file, cb){
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext === 'csv'){
+    Papa.parse(file, { header:false, dynamicTyping:true, skipEmptyLines:true,
+      complete: r => cb(r.data) });
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+      cb(rows);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseFileWithHeader(file, cb){
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext === 'csv'){
+    Papa.parse(file, { header:true, dynamicTyping:true, skipEmptyLines:true,
+      complete: r => cb(r.data) });
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:null});
+      cb(rows);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function normServicioRow(r){
+  const get = (...names) => {
+    for(const n of names){ if(r[n] !== undefined) return r[n]; }
+    return null;
+  };
+  let veterana = get('Es Veterana','es_veterana');
+  if(typeof veterana === 'string') veterana = veterana.toLowerCase() === 'true';
+  return {
+    anio: Number(get('Año','anio')),
+    mes: Number(get('Mes','mes')),
+    centerId: String(get('Center ID','center_id')).trim(),
+    region: get('Región','region'),
+    zona: get('Zona','zona'),
+    tienda: get('Tienda','tienda'),
+    veterana: !!veterana,
+    lns: toNum(get('% LNS','lns')),
+    pendientes: toNum(get('Pendientes','pendientes')),
+    pc: toNum(get('Pedido completo','pedido_completo')),
+    pe: toNum(get('Pedido en perfecto estado','pedido_perfecto_estado')),
+    ret: toNum(get('Retrasos','retrasos')),
+    at: toNum(get('Pedido a tiempo','pedido_a_tiempo')),
+    prod: toNum(get('Productividad','productividad')),
+    ventaNtc: toNum(get('Venta NTC','venta_ntc')),
+    ventaNsd: toNum(get('Venta NSD','venta_nsd')),
+    ntcModel: get('Modelo NTC','ntc_model')
+  };
+}
+
+function findHeaderRowIndex(rows, mustContain){
+  for(let i=0;i<Math.min(rows.length,15);i++){
+    const row = rows[i] || [];
+    if(row.some(c => String(c||'').trim().toLowerCase() === mustContain)) return i;
+  }
+  return -1;
+}
+
+function parseVentaRawRows(rawRows){
+  const headerIdx = findHeaderRowIndex(rawRows, 'centro');
+  if(headerIdx === -1) return [];
+  const headers = rawRows[headerIdx].map(h => String(h||'').trim().toLowerCase());
+  const findCol = (...variants) => {
+    for(const v of variants){
+      const idx = headers.findIndex(h => h === v);
+      if(idx !== -1) return idx;
+    }
+    return -1;
+  };
+  const idxCentro = findCol('centro');
+  const idxMes = findCol('mes');
+  const idxRegion = findCol('dirección regional','direccion regional','región','region');
+  const idxZona = findCol('zona coordinador','zona');
+  const idxVenta = headers.findIndex(h => h.startsWith('vtas'));
+
+  const out = [];
+  for(let i=headerIdx+1;i<rawRows.length;i++){
+    const row = rawRows[i];
+    if(!row || row[idxCentro]===undefined || row[idxCentro]===null || row[idxCentro]==='') continue;
+
+    let regionRaw = idxRegion!==-1 ? row[idxRegion] : null;
+    let region = null;
+    if(regionRaw!==null && regionRaw!==undefined){
+      const m = String(regionRaw).match(/DR\s*0*([0-9]+)/i);
+      if(m) region = 'R' + m[1].padStart(2,'0');
+    }
+    let zonaRaw = idxZona!==-1 ? row[idxZona] : null;
+    let zona = null;
+    if(zonaRaw!==null && zonaRaw!==undefined && zonaRaw!==''){
+      const m = String(zonaRaw).match(/([0-9]+)/);
+      if(m) zona = 'Z' + m[1].padStart(2,'0');
+    }
+    const mesRaw = idxMes!==-1 ? row[idxMes] : null;
+    let anio=null, mes=null;
+    if(mesRaw!==null){
+      const s = String(mesRaw).replace(/\D/g,'');
+      if(s.length>=6){ anio = Number(s.slice(0,4)); mes = Number(s.slice(4,6)); }
+    }
+    out.push({
+      centro: String(row[idxCentro]).trim(),
+      anio, mes, region, zona,
+      venta: toNum(idxVenta!==-1 ? row[idxVenta] : null)
+    });
+  }
+  return out;
+}
+
+function updateStatus(id, ok, extra){
+  const el = document.getElementById(id);
+  el.textContent = ok ? ('Cargado: ' + extra) : 'Error al leer el archivo';
+  el.parentElement.classList.toggle('loaded', ok);
+}
+
+['servicio','venta','graficas','objetivos'].forEach(id=>{
+  const box = document.getElementById('box-'+id);
+  const input = document.getElementById('file-'+id);
+  box.addEventListener('click', (e)=>{ if(e.target !== input) input.click(); });
+  box.addEventListener('dragover', e=>{ e.preventDefault(); box.style.borderColor = 'var(--verde)'; });
+  box.addEventListener('dragleave', e=>{ box.style.borderColor = ''; });
+  box.addEventListener('drop', e=>{
+    e.preventDefault();
+    box.style.borderColor = '';
+    if(e.dataTransfer.files.length){
+      input.files = e.dataTransfer.files;
+      input.dispatchEvent(new Event('change'));
+    }
+  });
+});
+
+document.getElementById('file-servicio').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  parseFileWithHeader(f, rows => {
+    dataServicio = rows.map(normServicioRow).filter(r => r.centerId && r.anio);
+    updateStatus('status-servicio', true, dataServicio.length + ' filas');
+    onDataChanged();
+  });
+});
+
+document.getElementById('file-venta').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  parseFile(f, rawRows => {
+    dataVenta = parseVentaRawRows(rawRows).filter(r => r.centro && r.anio);
+    updateStatus('status-venta', true, dataVenta.length + ' filas');
+    onDataChanged();
+  });
+});
+
+function normGraficasRow(r){
+  const get = (...names) => {
+    for(const n of names){ if(r[n] !== undefined) return r[n]; }
+    return null;
+  };
+  return {
+    anio: Number(get('anio','Año')),
+    mes: Number(get('mes','Mes')),
+    region: get('region','Región'),
+    pc: toNum(get('pct_Pedido_completo')),
+    pe: toNum(get('pct_Pedido_en_perfecto_estado')),
+    at: toNum(get('pct_Pedido_a_tiempo')),
+    p10: toNum(get('pct_Pedido_de_10'))
+  };
+}
+
+document.getElementById('file-graficas').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  parseFileWithHeader(f, rows => {
+    dataGraficas = rows.map(normGraficasRow).filter(r => r.region && r.anio);
+    updateStatus('status-graficas', true, dataGraficas.length + ' filas');
+    onDataChanged();
+  });
+});
+
+function zoomChart(svgHtml){
+  document.getElementById('zoom-content').innerHTML = svgHtml;
+  document.getElementById('zoom-overlay').classList.add('active');
+}
+window.zoomChart = zoomChart;
+
+document.getElementById('zoom-close').addEventListener('click', ()=>{
+  document.getElementById('zoom-overlay').classList.remove('active');
+});
+document.getElementById('zoom-overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'zoom-overlay') document.getElementById('zoom-overlay').classList.remove('active');
+});
+
+const OBJETIVOS_DEFAULT = {
+  2026: {
+    'R01': {coordinador:'Raquel Pérez', tiendasFin:8,  objVentaMM:14},
+    'R02': {coordinador:'Alberto Fernández', tiendasFin:59, objVentaMM:122},
+    'R03': {coordinador:'Puri Jerez', tiendasFin:13, objVentaMM:29},
+    'R04': {coordinador:'Ramón Mulas', tiendasFin:15, objVentaMM:33},
+    'R05': {coordinador:'Víctor Beti', tiendasFin:30, objVentaMM:70},
+    'R06': {coordinador:'Marga Ramos', tiendasFin:26, objVentaMM:59},
+    'R07': {coordinador:'Antonio Buendía', tiendasFin:14, objVentaMM:28},
+    'R08': {coordinador:'Jéssica Bedia', tiendasFin:54, objVentaMM:110},
+    'R09': {coordinador:'Mar Fernández', tiendasFin:21, objVentaMM:40},
+    'R10': {coordinador:'Cristina Pérez', tiendasFin:21, objVentaMM:47},
+  }
+};
+let dataObjetivosCustom = {}; // {anio: {region: {coordinador, tiendasFin, objVentaMM}}}
+
+function getObjetivosAnio(anio){
+  if(dataObjetivosCustom[anio]) return dataObjetivosCustom[anio];
+  if(OBJETIVOS_DEFAULT[anio]) return OBJETIVOS_DEFAULT[anio];
+  return null;
+}
+
+function parseObjetivosRawRows(rawRows){
+  const headerIdx = findHeaderRowIndex(rawRows, 'región') !== -1 ? findHeaderRowIndex(rawRows,'región') : findHeaderRowIndex(rawRows,'region');
+  if(headerIdx === -1) return {};
+  const headers = rawRows[headerIdx].map(h => String(h||'').trim().toLowerCase());
+  const idxAnio = headers.findIndex(h=>h.includes('año')||h.includes('anio'));
+  const idxRegion = headers.findIndex(h=>h.includes('región')||h.includes('region'));
+  const idxCoord = headers.findIndex(h=>h.includes('coordinador')||h.includes('responsable'));
+  const idxTiendas = headers.findIndex(h=>h.includes('tienda'));
+  const idxObjVenta = headers.findIndex(h=>h.includes('obj') && h.includes('venta'));
+
+  const out = {};
+  for(let i=headerIdx+1;i<rawRows.length;i++){
+    const row = rawRows[i];
+    if(!row || !row[idxRegion]) continue;
+    let regionRaw = String(row[idxRegion]);
+    const m = regionRaw.match(/(?:DR|R)\s*0*([0-9]+)/i);
+    if(!m) continue;
+    const region = 'R' + m[1].padStart(2,'0');
+    const anio = idxAnio!==-1 ? Number(row[idxAnio]) : new Date().getFullYear()+1;
+    if(!out[anio]) out[anio] = {};
+    out[anio][region] = {
+      coordinador: idxCoord!==-1 ? row[idxCoord] : '',
+      tiendasFin: idxTiendas!==-1 ? toNum(row[idxTiendas]) : null,
+      objVentaMM: idxObjVenta!==-1 ? toNum(row[idxObjVenta]) : null
+    };
+  }
+  return out;
+}
+
+document.getElementById('file-objetivos').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  parseFile(f, rawRows => {
+    const parsed = parseObjetivosRawRows(rawRows);
+    Object.assign(dataObjetivosCustom, parsed);
+    const anios = Object.keys(parsed).join(', ');
+    updateStatus('status-objetivos', true, 'años: ' + anios);
+    onDataChanged();
+  });
+});
+
+function onDataChanged(){
+  if(dataServicio.length === 0) return;
+  document.getElementById('global-controls').style.display = 'flex';
+  document.getElementById('tabs').style.display = 'flex';
+  populateSelectors();
+  render();
+}
+
+function esMesCerrado(anio, mes){
+  const hoy = new Date();
+  const anioActual = hoy.getFullYear();
+  const mesActual = hoy.getMonth() + 1; // mes en curso, 1-12
+  return (anio < anioActual) || (anio === anioActual && mes < mesActual);
+}
+
+function populateSelectors(){
+  const regiones = [...new Set(dataServicio.map(r=>r.region))].filter(Boolean).sort();
+  const selRegion = document.getElementById('sel-region');
+  const prevRegion = selRegion.value;
+  selRegion.innerHTML = regiones.map(r=>`<option value="${r}">${r}</option>`).join('');
+  if(regiones.includes(prevRegion)) selRegion.value = prevRegion;
+  else if(regiones.includes('R03')) selRegion.value = 'R03';
+
+  const mesesDisponibles = [...new Set(dataServicio.map(r=>r.anio+'-'+String(r.mes).padStart(2,'0')))].sort();
+  const mesesCerrados = mesesDisponibles.filter(m=>{
+    const [a,mm] = m.split('-').map(Number);
+    return esMesCerrado(a, mm);
+  });
+  const selMes = document.getElementById('sel-mes');
+  const prevMes = selMes.value;
+  selMes.innerHTML = mesesDisponibles.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(mesesDisponibles.includes(prevMes)) selMes.value = prevMes;
+  else if(mesesCerrados.length) selMes.value = mesesCerrados[mesesCerrados.length-1];
+  else selMes.value = mesesDisponibles[mesesDisponibles.length-1];
+}
+
+document.getElementById('sel-region').addEventListener('change', render);
+document.getElementById('sel-mes').addEventListener('change', render);
+
+document.querySelectorAll('.tabbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  });
+});
+
+function currentTab(){ return document.querySelector('.tabbtn.active').dataset.tab; }
+function fmtPct(v, dec=2){ return v===null || v===undefined || isNaN(v) ? '—' : v.toFixed(dec); }
+function cellClass(v, objetivo){
+  if(v===null || v===undefined || objetivo===null || objetivo===undefined) return '';
+  return v > objetivo ? 'bad' : '';
+}
+function avg(arr){
+  const vals = arr.filter(v=>v!==null && v!==undefined && !isNaN(v));
+  if(vals.length===0) return null;
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+function groupByZona(rows){
+  const zonas = {};
+  rows.forEach(r=>{ if(!zonas[r.zona]) zonas[r.zona]=[]; zonas[r.zona].push(r); });
+  return zonas;
+}
+function tiendaLabel(r){
+  const pob = poblaciones[r.centerId];
+  const nombre = r.tienda ? (r.tienda.charAt(0) + r.tienda.slice(1).toLowerCase()) : r.centerId;
+  return `${r.centerId} - ${nombre}${pob ? ` <span class="poblacion">(${pob})</span>` : ''}`;
+}
+
+function renderVentaBarras(out, region){
+  const hasVenta = dataServicio.some(r => r.ventaNtc !== null || r.ventaNsd !== null);
+  if(!hasVenta){
+    out.innerHTML = '<div class="empty">El archivo de Servicio (34412) todavía no trae las columnas "Venta NTC"/"Venta NSD" — vuelve a exportarlo con la versión actualizada de la query.</div>';
+    currentTableData = null;
+    return;
+  }
+  const meses = [];
+  for(let a=2025; a<=2026; a++){
+    for(let m=1; m<=12; m++){
+      if(!esMesCerrado(a,m)) continue;
+      if(dataServicio.some(r=>r.anio===a && r.mes===m && r.region===region)) meses.push({anio:a, mes:m});
+    }
+  }
+  const w = 760, h = 320, padL = 50, padR = 20, padT = 30, padB = 40;
+  const barGroupW = (w-padL-padR)/meses.length;
+  const barW = Math.min(28, barGroupW*0.6);
+
+  const serie = meses.map(({anio,mes})=>{
+    const rs = dataServicio.filter(r=>r.anio===anio && r.mes===mes && r.region===region);
+    const ntc = rs.reduce((a,r)=>a+(r.ventaNtc||0),0);
+    const nsd = rs.reduce((a,r)=>a+(r.ventaNsd||0),0);
+    return {anio, mes, ntc, nsd, total: ntc+nsd};
+  });
+
+  const maxTotal = Math.max(...serie.map(s=>s.total), 1);
+  const y = v => padT + (h-padT-padB) - (v/maxTotal)*(h-padT-padB);
+
+  let svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; background:#fff;">`;
+  svg += `<circle cx="${padL}" cy="12" r="4" fill="#00AB61"></circle><text x="${padL+8}" y="16" font-size="10" fill="#333">NTC</text>`;
+  svg += `<circle cx="${padL+55}" cy="12" r="4" fill="#8AA0C7"></circle><text x="${padL+63}" y="16" font-size="10" fill="#333">NSD</text>`;
+
+  const nTicks = 4;
+  for(let t=0;t<=nTicks;t++){
+    const v = maxTotal*t/nTicks;
+    const yy = y(v);
+    svg += `<line x1="${padL}" y1="${yy}" x2="${w-padR}" y2="${yy}" stroke="#EEE" stroke-width="1"></line>`;
+    svg += `<text x="${padL-6}" y="${yy+3}" font-size="9" text-anchor="end" fill="#888">${(v/1e6).toFixed(1)}M</text>`;
+  }
+  svg += `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#BBB"></line>`;
+
+  const mesesLabel = ['E','F','M','A','My','J','Jl','A','S','O','N','D'];
+  serie.forEach((s,i)=>{
+    const cx = padL + i*barGroupW + barGroupW/2;
+    const yTop = y(s.total);
+    const yNtc = y(s.ntc);
+    svg += `<rect x="${cx-barW/2}" y="${yNtc}" width="${barW}" height="${(h-padB)-yNtc}" fill="#00AB61"></rect>`;
+    svg += `<rect x="${cx-barW/2}" y="${yTop}" width="${barW}" height="${yNtc-yTop}" fill="#8AA0C7"></rect>`;
+    svg += `<text x="${cx}" y="${yTop-6}" font-size="9" text-anchor="middle" fill="#333" font-weight="700">${(s.total/1e6).toFixed(1)}M</text>`;
+    svg += `<text x="${cx}" y="${h-padB+14}" font-size="9" text-anchor="middle" fill="#888">${mesesLabel[s.mes-1]}'${String(s.anio).slice(2)}</text>`;
+  });
+  svg += `</svg>`;
+
+  let html = `<h2>Evolución venta NTC+NSD · ${region} ${exportBtn()}</h2>
+    <div class="chart-copy-target" id="chart-venta-barras">${svg}</div>
+    <button class="btn" onclick="zoomChart(document.getElementById('chart-venta-barras').innerHTML)">🔍 Ampliar</button>
+    <div class="note">Barras apiladas: verde = NTC, azul = NSD. Fuente: 34412 (columnas Venta NTC/Venta NSD, añadidas desde public_mart_shop).</div>`;
+  out.innerHTML = html;
+  currentTableData = {
+    headers:['Año','Mes','Venta NTC','Venta NSD','Total'],
+    rows: serie.map(s=>[s.anio, s.mes, s.ntc, s.nsd, s.total]),
+    filename: `venta_ntc_nsd_${region}.xlsx`
+  };
+}
+
+function renderVentaRegion(out, region, anioSel){
+  const hasVenta = dataServicio.some(r => r.ventaNtc !== null || r.ventaNsd !== null);
+  if(!hasVenta){
+    out.innerHTML = '<div class="empty">El archivo de Servicio (34412) no trae las columnas "Venta NTC"/"Venta NSD" — vuelve a exportarlo con la versión actualizada de la query.</div>';
+    currentTableData = null;
+    return;
+  }
+  const configPanelHtml = `
+    <div class="panel" style="margin-bottom:16px; background:#FAFBFA;">
+      <h2 style="margin-bottom:10px; cursor:pointer;" id="cfg-toggle-venta">
+        Opciones de la gráfica
+        <span id="cfg-toggle-venta-icon" style="font-size:12px; color:#888;">${ventaPanelCollapsed ? '▸ mostrar' : '▾ ocultar'}</span>
+      </h2>
+      <div id="cfg-body-venta" style="${ventaPanelCollapsed ? 'display:none;' : ''}">
+      <div class="controls" style="gap:18px;">
+        <label>Tamaño texto (meses/valores): <input type="number" id="cfg-venta-font" value="${evoConfig.baseFontSize}" min="6" max="18" step="0.5" style="width:55px;"></label>
+        <button class="btn primary" id="cfg-venta-aplicar">Aplicar</button>
+      </div>
+      </div>
+    </div>`;
+  // Meses cerrados del año seleccionado, con dato disponible
+  const mesesCerrados = [];
+  for(let m=1;m<=12;m++){
+    if(esMesCerrado(anioSel, m) && dataServicio.some(r=>r.anio===anioSel && r.mes===m && r.region===region)){
+      mesesCerrados.push(m);
+    }
+  }
+  if(mesesCerrados.length===0){
+    out.innerHTML = '<div class="empty">No hay meses cerrados con datos para esta región en '+anioSel+'.</div>';
+    currentTableData = null;
+    return;
+  }
+  const ultimoMes = mesesCerrados[mesesCerrados.length-1];
+
+  // Serie mensual NTC+NSD
+  const nombresMes = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const serie = mesesCerrados.map(m=>{
+    const rs = dataServicio.filter(r=>r.anio===anioSel && r.mes===m && r.region===region);
+    const ntc = rs.reduce((a,r)=>a+(r.ventaNtc||0),0);
+    const nsd = rs.reduce((a,r)=>a+(r.ventaNsd||0),0);
+    return {mes:m, ntc, nsd, total:ntc+nsd};
+  });
+
+  // Tiendas y modelo (del último mes cerrado)
+  const rsUltimo = dataServicio.filter(r=>r.anio===anioSel && r.mes===ultimoMes && r.region===region);
+  const nTiendas = rsUltimo.length;
+  const modelos = {};
+  rsUltimo.forEach(r=>{
+    const mod = r.ntcModel || 'Sin modelo';
+    modelos[mod] = (modelos[mod]||0)+1;
+  });
+  const ordenModelos = ['NTC150','NTC120','NTC90','NTC60','NTC30','NTC15'];
+  const modelosTexto = ordenModelos.filter(m=>modelos[m]).map(m=>`${modelos[m]} ${m}`).join(' · ');
+
+  // Acumulado ano -> ultimo mes cerrado
+  const onlineAcumByCentro = {};
+  dataServicio.filter(r=>r.anio===anioSel && r.mes<=ultimoMes && r.region===region).forEach(r=>{
+    onlineAcumByCentro[r.centerId] = (onlineAcumByCentro[r.centerId]||0)+(r.ventaNtc||0)+(r.ventaNsd||0);
+  });
+  const fisicaAcumByCentro = {};
+  dataVenta.filter(r=>r.anio===anioSel && r.mes<=ultimoMes && r.region===region).forEach(r=>{
+    fisicaAcumByCentro[r.centro] = (fisicaAcumByCentro[r.centro]||0)+(r.venta||0);
+  });
+  const totalOnlineAcum = Object.values(onlineAcumByCentro).reduce((a,b)=>a+b,0);
+  const totalFisicaAcum = Object.values(fisicaAcumByCentro).reduce((a,b)=>a+b,0);
+  const pctAcum = totalFisicaAcum>0 ? totalOnlineAcum/totalFisicaAcum*100 : null;
+
+  // Gráfico de barras (mismo estilo que la diapositiva: naranja NTC, verde NSD)
+  const w=560, h=300, padL=50, padR=20, padT=30, padB=40;
+  const barGroupW = (w-padL-padR)/serie.length;
+  const barW = Math.min(34, barGroupW*0.6);
+  const maxTotal = Math.max(...serie.map(s=>s.total), 1);
+  const y = v => padT + (h-padT-padB) - (v/maxTotal)*(h-padT-padB);
+
+  const fs = evoConfig.baseFontSize;
+  let svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; background:#fff;">`;
+  svg += `<circle cx="${padL}" cy="12" r="4" fill="#8AA0C7"></circle><text x="${padL+8}" y="16" font-size="${fs+1}" fill="#333">NSD</text>`;
+  svg += `<circle cx="${padL+55}" cy="12" r="4" fill="#F4A460"></circle><text x="${padL+63}" y="16" font-size="${fs+1}" fill="#333">NTC</text>`;
+  svg += `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#BBB"></line>`;
+
+  serie.forEach((s,i)=>{
+    const cx = padL + i*barGroupW + barGroupW/2;
+    const yTop = y(s.total);
+    const yNtc = y(s.ntc);
+    svg += `<rect x="${cx-barW/2}" y="${yNtc}" width="${barW}" height="${(h-padB)-yNtc}" fill="#F4A460"></rect>`;
+    if(s.nsd>0) svg += `<rect x="${cx-barW/2}" y="${yTop}" width="${barW}" height="${yNtc-yTop}" fill="#8AA0C7"></rect>`;
+    svg += `<text x="${cx}" y="${yTop-8}" font-size="${fs+1}" text-anchor="middle" fill="#333" font-weight="700">${(s.total/1e6).toFixed(1)}M</text>`;
+    svg += `<text x="${cx}" y="${h-padB+16}" font-size="${fs}" text-anchor="middle" fill="#888">${nombresMes[s.mes-1]} ${anioSel}</text>`;
+  });
+  svg += `</svg>`;
+
+  let html = configPanelHtml;
+  html += `<h2>EAC · Venta Región ${region.replace('R','')} ${exportBtn()}</h2>
+  <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:16px;">
+    <div>
+      <div style="background:#00AB61; color:#fff; text-align:center; font-weight:700; padding:8px; border-radius:6px 6px 0 0;">Evolución NTC + NSD (€)</div>
+      <div class="chart-copy-target" id="chart-venta-region" style="border:1px solid var(--gris-linea); border-top:none; padding:8px;">${svg}</div>
+      <button class="btn" onclick="zoomChart(document.getElementById('chart-venta-region').innerHTML)">🔍 Ampliar</button>
+    </div>
+    <div>
+      <div style="background:#00AB61; color:#fff; text-align:center; font-weight:700; padding:8px; border-radius:6px;">Tiendas</div>
+      <div class="card" style="text-align:center; margin-top:10px;">
+        <div style="font-size:22px; font-weight:700;">${nTiendas} Tiendas</div>
+        <div style="margin-top:6px; color:#00AB61; font-weight:600;">${modelosTexto || 'Sin datos de modelo'}</div>
+      </div>
+      <div style="background:#00AB61; color:#fff; text-align:center; font-weight:700; padding:8px; border-radius:6px; margin-top:12px;">Acum. ${anioSel} (€)</div>
+      <div class="card" style="text-align:center; margin-top:10px; border-color:#A9D8B9;">
+        <div style="font-size:26px; font-weight:700;">${(totalOnlineAcum/1e6).toFixed(1).replace('.',',')} M€</div>
+      </div>
+      <div class="card" style="text-align:center; margin-top:12px;">
+        <div style="font-size:30px; font-weight:700; color:#1F2A24;">${pctAcum!==null?pctAcum.toFixed(1).replace('.',','):'—'}%</div>
+        <div style="font-size:12px; color:#888;">NTC sobre Vta. Tienda</div>
+      </div>
+    </div>
+  </div>
+  <div class="note">Gráfico y acumulado calculados solo con meses CERRADOS de ${anioSel} (hasta ${nombresMes[ultimoMes-1]}, aunque haya datos parciales de un mes posterior). El desglose de modelo usa las tiendas del último mes cerrado.</div>`;
+  out.innerHTML = html;
+  currentTableData = {
+    headers:['Mes','Venta NTC','Venta NSD','Total'],
+    rows: serie.map(s=>[nombresMes[s.mes-1], s.ntc, s.nsd, s.total]),
+    filename:`venta_region_${region}.xlsx`
+  };
+  document.getElementById('cfg-toggle-venta').addEventListener('click', ()=>{
+    ventaPanelCollapsed = !ventaPanelCollapsed;
+    render();
+  });
+  document.getElementById('cfg-venta-aplicar').addEventListener('click', ()=>{
+    evoConfig.baseFontSize = Number(document.getElementById('cfg-venta-font').value);
+    render();
+  });
+}
+
+function render(){
+  const tab = currentTab();
+  const [anio, mes] = document.getElementById('sel-mes').value.split('-').map(Number);
+  const region = document.getElementById('sel-region').value;
+  const out = document.getElementById('panel-out');
+  const rowsMes = dataServicio.filter(r=>r.anio===anio && r.mes===mes);
+
+  if(tab === 'nacional') renderNacional(out, rowsMes, region);
+  else if(tab === 'nacional-venta') renderNacionalVenta(out, region, anio);
+  else if(tab === 'tarjetas') renderTarjetas(out, rowsMes, region);
+  else if(tab === 'tienda-servicio') renderTiendaServicio(out, rowsMes, region);
+  else if(tab === 'tienda-venta') renderTiendaVenta(out, anio, mes, region);
+  else if(tab === 'evolucion') renderEvolucion(out, region, anio);
+  else if(tab === 'venta-region') renderVentaRegion(out, region, anio);
+}
+
+function exportBtn(){
+  return `<button class="btn" onclick="exportCurrentTable()">⬇ Exportar a Excel</button>`;
+}
+
+function exportCurrentTable(){
+  if(!currentTableData){ alert('No hay tabla para exportar en esta pestaña.'); return; }
+  const ws = XLSX.utils.aoa_to_sheet([currentTableData.headers, ...currentTableData.rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Datos');
+  XLSX.writeFile(wb, currentTableData.filename || 'export.xlsx');
+}
+
+function renderNacionalVenta(out, regionSel, anioSel){
+  const objetivos = getObjetivosAnio(anioSel);
+  if(!objetivos){
+    out.innerHTML = `<div class="empty">No hay objetivos guardados para ${anioSel}. Sube el archivo de Objetivos por Región para ese año.</div>`;
+    currentTableData = null;
+    return;
+  }
+  const hasVenta = dataServicio.some(r => r.ventaNtc !== null || r.ventaNsd !== null);
+
+  // Último mes cerrado con datos, del año seleccionado
+  let ultimoMes = null;
+  for(let m=12;m>=1;m--){
+    if(esMesCerrado(anioSel,m) && dataServicio.some(r=>r.anio===anioSel && r.mes===m)){ ultimoMes = m; break; }
+  }
+
+  const regionesOrden = Object.keys(objetivos).sort();
+  let html = `<h2>EAC · Venta (Nacional) ${exportBtn()}</h2>
+  <table><thead><tr>
+    <th>Región</th><th>Nº Tiendas con NTC Fin '${String(anioSel).slice(2)}</th>
+    <th>Obj. Venta NTC '${String(anioSel).slice(2)} (MM€)</th>
+    <th>% sobre vta Tienda ${ultimoMes?`(ene-${String(ultimoMes).padStart(2,'0')} '${String(anioSel).slice(2)})`:''}</th>
+  </tr></thead><tbody>`;
+
+  let totalTiendas=0, totalObjMM=0, totalOnline=0, totalFisica=0;
+  const exportRows = [];
+
+  regionesOrden.forEach(reg=>{
+    const o = objetivos[reg];
+    let pct = null;
+    if(hasVenta && ultimoMes){
+      const online = dataServicio.filter(r=>r.anio===anioSel && r.mes<=ultimoMes && r.region===reg)
+        .reduce((a,r)=>a+(r.ventaNtc||0)+(r.ventaNsd||0),0);
+      const fisica = dataVenta.filter(r=>r.anio===anioSel && r.mes<=ultimoMes && r.region===reg)
+        .reduce((a,r)=>a+(r.venta||0),0);
+      pct = fisica>0 ? online/fisica*100 : null;
+      totalOnline += online; totalFisica += fisica;
+    }
+    totalTiendas += (o.tiendasFin||0);
+    totalObjMM += (o.objVentaMM||0);
+    const rowClass = reg===regionSel ? 'selected-row' : '';
+    html += `<tr class="${rowClass}">
+      <td class="left">${reg} - ${o.coordinador||''}</td>
+      <td>${o.tiendasFin ?? '—'}</td>
+      <td>${o.objVentaMM ?? '—'}</td>
+      <td>${pct!==null?pct.toFixed(1)+'%':'—'}</td>
+    </tr>`;
+    exportRows.push([reg, o.coordinador, o.tiendasFin, o.objVentaMM, pct]);
+  });
+
+  const pctTotal = totalFisica>0 ? totalOnline/totalFisica*100 : null;
+  exportRows.push(['TOTAL','', totalTiendas, totalObjMM, pctTotal]);
+  html += `<tr class="total-row">
+    <td class="left">TOTAL</td><td>${totalTiendas}</td><td>${totalObjMM}</td>
+    <td>${pctTotal!==null?pctTotal.toFixed(1)+'%':'—'}</td>
+  </tr>`;
+  html += `</tbody></table>
+  <div class="note">Nº Tiendas y Obj. Venta son objetivos fijos del año (guardados/subidos). El % sobre vta Tienda se recalcula solo con tus datos cargados, acumulado desde enero hasta el último mes cerrado.</div>`;
+  out.innerHTML = html;
+  currentTableData = { headers:['Región','Coordinador','Nº Tiendas Fin Año','Obj. Venta MM€','% sobre vta Tienda'], rows: exportRows, filename:`venta_nacional_${anioSel}.xlsx` };
+}
+
+function renderNacional(out, rowsMes, regionSel){
+  const regiones = [...new Set(rowsMes.map(r=>r.region))].filter(Boolean).sort();
+  let html = `<h2>Principales farolas por Región ${exportBtn()}</h2>
+  <table><thead><tr>
+    <th rowspan="2">Región</th>
+    <th colspan="2">Pedido completo</th>
+    <th>Perfecto estado</th>
+    <th colspan="2">A tiempo y bien atendido</th>
+    <th>Eficiente</th>
+  </tr><tr>
+    <th>LNS (0,40%)</th><th>Inputs (0,96%)</th>
+    <th>Inputs (1,16%)</th>
+    <th>Retrasos (2%)</th><th>Inputs (0,36%)</th>
+    <th>Prod (0,34 min/ud)</th>
+  </tr></thead><tbody>`;
+
+  const allVals = {lns:[],pc:[],pe:[],ret:[],at:[],prod:[]};
+  const exportRows = [];
+
+  regiones.forEach(reg=>{
+    const rs = rowsMes.filter(r=>r.region===reg);
+    const lns = avg(rs.map(r=>r.lns))*100;
+    const pc = avg(rs.map(r=>r.pc));
+    const pe = avg(rs.map(r=>r.pe));
+    const ret = avg(rs.map(r=>r.ret))*100;
+    const at = avg(rs.map(r=>r.at));
+    const prod = avg(rs.map(r=>r.prod));
+    allVals.lns.push(lns); allVals.pc.push(pc); allVals.pe.push(pe);
+    allVals.ret.push(ret); allVals.at.push(at); allVals.prod.push(prod);
+    exportRows.push([reg, lns, pc, pe, ret, at, prod]);
+    const rowClass = reg===regionSel ? 'selected-row' : '';
+    html += `<tr class="${rowClass}">
+      <td class="left">${reg}</td>
+      <td class="${cellClass(lns,objetivos.lns*100)}">${fmtPct(lns)}</td>
+      <td class="${cellClass(pc,objetivos.pc)}">${fmtPct(pc)}</td>
+      <td class="${cellClass(pe,objetivos.pe)}">${fmtPct(pe)}</td>
+      <td class="${cellClass(ret,objetivos.ret)}">${fmtPct(ret)}</td>
+      <td class="${cellClass(at,objetivos.at)}">${fmtPct(at)}</td>
+      <td class="${cellClass(prod,objetivos.prod)}">${fmtPct(prod)}</td>
+    </tr>`;
+  });
+
+  const totLns=avg(allVals.lns), totPc=avg(allVals.pc), totPe=avg(allVals.pe),
+        totRet=avg(allVals.ret), totAt=avg(allVals.at), totProd=avg(allVals.prod);
+  exportRows.push(['TOTAL', totLns, totPc, totPe, totRet, totAt, totProd]);
+  html += `<tr class="total-row">
+    <td class="left">TOTAL</td>
+    <td class="${cellClass(totLns,objetivos.lns*100)}">${fmtPct(totLns)}</td>
+    <td class="${cellClass(totPc,objetivos.pc)}">${fmtPct(totPc)}</td>
+    <td class="${cellClass(totPe,objetivos.pe)}">${fmtPct(totPe)}</td>
+    <td class="${cellClass(totRet,objetivos.ret)}">${fmtPct(totRet)}</td>
+    <td class="${cellClass(totAt,objetivos.at)}">${fmtPct(totAt)}</td>
+    <td class="${cellClass(totProd,objetivos.prod)}">${fmtPct(totProd)}</td>
+  </tr>`;
+  html += `</tbody></table>
+  <div class="note">En rojo, valores que superan el objetivo de la cabecera (incluida la fila TOTAL). Tu región seleccionada aparece resaltada en amarillo.</div>`;
+  out.innerHTML = html;
+  currentTableData = {
+    headers:['Región','LNS %','Pedido completo %','Perfecto estado %','Retrasos %','A tiempo %','Productividad'],
+    rows: exportRows,
+    filename: 'farolas_nacional.xlsx'
+  };
+}
+
+function renderTarjetas(out, rowsMes, region){
+  const rs = rowsMes.filter(r=>r.region===region);
+  const rsVeteranas = rowsMes.filter(r=>r.veterana);
+
+  function calc(rows, key, mult){
+    const v = avg(rows.map(r=>r[key]));
+    return v===null ? null : v*mult;
+  }
+
+  const lns = calc(rs,'lns',100), lnsMedia = calc(rsVeteranas,'lns',100);
+  const pend = calc(rs,'pendientes',1), pendMedia = calc(rsVeteranas,'pendientes',1);
+  const pc = calc(rs,'pc',1), pcMedia = calc(rsVeteranas,'pc',1);
+  const pe = calc(rs,'pe',1), peMedia = calc(rsVeteranas,'pe',1);
+  const ret = calc(rs,'ret',100), retMedia = calc(rsVeteranas,'ret',100);
+  const at = calc(rs,'at',1), atMedia = calc(rsVeteranas,'at',1);
+  const prod = calc(rs,'prod',1), prodMedia = calc(rsVeteranas,'prod',1);
+
+  function row(label, val, media, obj, unit, dec=2){
+    const cls = (obj!==null && val!==null && val>obj) ? 'bad' : '';
+    return `<div class="metric-row">
+      <span><span class="${cls}">${fmtPct(val,dec)}${unit}</span> ${label}</span>
+      <span class="media">(${fmtPct(media,dec)}${unit} media)</span>
+    </div>`;
+  }
+
+  let html = `<h2>Servicio · ${region} vs Media (tiendas veteranas) ${exportBtn()}</h2><div class="cards">
+    <div class="card"><h3>Pedido completo</h3>
+      ${row('LNS', lns, lnsMedia, objetivos.lns*100, '%')}
+      ${row('Pendientes', pend, pendMedia, null, '', 0)}
+      ${row('Inputs Jefe', pc, pcMedia, objetivos.pc, '%')}
+    </div>
+    <div class="card"><h3>Perfecto estado</h3>
+      ${row('Inputs Jefe', pe, peMedia, objetivos.pe, '%')}
+    </div>
+    <div class="card"><h3>A tiempo y bien atendido</h3>
+      ${row('Retrasos', ret, retMedia, objetivos.ret, '%')}
+      ${row('Inputs Jefe', at, atMedia, objetivos.at, '%')}
+    </div>
+    <div class="card"><h3>Eficiente</h3>
+      ${row('Productividad', prod, prodMedia, objetivos.prod, ' min/ud')}
+    </div>
+  </div>
+  <div class="note">La columna "media" se calcula solo con tiendas veteranas (≥180 días desde apertura) de todas las regiones. En rojo, solo el número que supera el objetivo (no la media).</div>`;
+  out.innerHTML = html;
+  currentTableData = {
+    headers:['Métrica', region, 'Media veteranas'],
+    rows: [
+      ['LNS %', lns, lnsMedia],['Pendientes', pend, pendMedia],
+      ['Pedido completo %', pc, pcMedia],['Perfecto estado %', pe, peMedia],
+      ['Retrasos %', ret, retMedia],['A tiempo %', at, atMedia],
+      ['Productividad', prod, prodMedia]
+    ],
+    filename: `region_vs_media_${region}.xlsx`
+  };
+}
+
+function renderTiendaServicio(out, rowsMes, region){
+  const rs = rowsMes.filter(r=>r.region===region);
+  if(rs.length===0){ out.innerHTML = '<div class="empty">No hay datos de servicio para esta región/mes.</div>'; currentTableData=null; return; }
+  const zonas = groupByZona(rs);
+  let html = `<h2>Servicio · ${region} por tienda y zona ${exportBtn()}</h2>
+  <table><thead><tr>
+    <th rowspan="2">Tienda</th>
+    <th colspan="2">Pedido completo</th><th>Perfecto estado</th>
+    <th colspan="2">A tiempo</th><th>Eficiente</th>
+  </tr><tr>
+    <th>LNS (0,40%)</th><th>Inputs (0,96%)</th><th>Inputs (1,16%)</th>
+    <th>Retrasos (2%)</th><th>Inputs (0,36%)</th><th>Prod (0,34 min/ud)</th>
+  </tr></thead><tbody>`;
+
+  const exportRows = [];
+
+  Object.keys(zonas).sort().forEach(zona=>{
+    const rowsZona = zonas[zona];
+    rowsZona.sort((a,b)=>a.centerId.localeCompare(b.centerId)).forEach(r=>{
+      const lns=r.lns*100, ret=r.ret*100;
+      html += `<tr>
+        <td class="left">${tiendaLabel(r)}</td>
+        <td class="${cellClass(lns,objetivos.lns*100)}">${fmtPct(lns)}</td>
+        <td class="${cellClass(r.pc,objetivos.pc)}">${fmtPct(r.pc)}</td>
+        <td class="${cellClass(r.pe,objetivos.pe)}">${fmtPct(r.pe)}</td>
+        <td class="${cellClass(ret,objetivos.ret)}">${fmtPct(ret)}</td>
+        <td class="${cellClass(r.at,objetivos.at)}">${fmtPct(r.at)}</td>
+        <td class="${cellClass(r.prod,objetivos.prod)}">${fmtPct(r.prod)}</td>
+      </tr>`;
+      exportRows.push([`${r.centerId} - ${r.tienda}`, zona, lns, r.pc, r.pe, ret, r.at, r.prod]);
+    });
+    const lns = avg(rowsZona.map(r=>r.lns))*100;
+    const pc = avg(rowsZona.map(r=>r.pc));
+    const pe = avg(rowsZona.map(r=>r.pe));
+    const ret = avg(rowsZona.map(r=>r.ret))*100;
+    const at = avg(rowsZona.map(r=>r.at));
+    const prod = avg(rowsZona.map(r=>r.prod));
+    html += `<tr class="zona-row">
+      <td class="left">${zona}</td>
+      <td class="${cellClass(lns,objetivos.lns*100)}">${fmtPct(lns)}</td>
+      <td class="${cellClass(pc,objetivos.pc)}">${fmtPct(pc)}</td>
+      <td class="${cellClass(pe,objetivos.pe)}">${fmtPct(pe)}</td>
+      <td class="${cellClass(ret,objetivos.ret)}">${fmtPct(ret)}</td>
+      <td class="${cellClass(at,objetivos.at)}">${fmtPct(at)}</td>
+      <td class="${cellClass(prod,objetivos.prod)}">${fmtPct(prod)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table><div class="note">En rojo, valores que superan el objetivo de la cabecera. Fila de zona = media de sus tiendas.</div>`;
+  out.innerHTML = html;
+  currentTableData = {
+    headers:['Tienda','Zona','LNS %','Pedido completo %','Perfecto estado %','Retrasos %','A tiempo %','Productividad'],
+    rows: exportRows,
+    filename: `farolas_tienda_${region}.xlsx`
+  };
+}
+
+function renderTiendaVenta(out, anio, mes, region){
+  const rsServicio = dataServicio.filter(r=>r.anio===anio && r.mes===mes && r.region===region);
+  if(rsServicio.length===0){ out.innerHTML = '<div class="empty">No hay datos de servicio (venta online) para esta región/mes.</div>'; currentTableData=null; return; }
+  const hasVenta = rsServicio.some(r => r.ventaNtc !== null || r.ventaNsd !== null);
+  if(!hasVenta){
+    out.innerHTML = '<div class="empty">El archivo de Servicio (34412) no trae las columnas "Venta NTC"/"Venta NSD" — vuelve a exportarlo con la versión actualizada de la query.</div>';
+    currentTableData = null;
+    return;
+  }
+  const fisicaByCentro = {};
+  dataVenta.filter(r=>r.anio===anio && r.mes===mes && r.region===region).forEach(r=>{
+    fisicaByCentro[r.centro] = r.venta;
+  });
+
+  const rows = rsServicio.map(r=>{
+    const online = (r.ventaNtc||0) + (r.ventaNsd||0);
+    const fisica = fisicaByCentro[r.centerId];
+    const pct = (fisica && fisica>0) ? (online/fisica*100) : null;
+    return {...r, online, pct};
+  });
+
+  // Acumulado enero -> mes seleccionado (mismo año)
+  const onlineAcumByCentro = {};
+  dataServicio.filter(r=>r.anio===anio && r.mes<=mes && r.region===region).forEach(r=>{
+    onlineAcumByCentro[r.centerId] = (onlineAcumByCentro[r.centerId]||0) + (r.ventaNtc||0) + (r.ventaNsd||0);
+  });
+  const fisicaAcumByCentro = {};
+  dataVenta.filter(r=>r.anio===anio && r.mes<=mes && r.region===region).forEach(r=>{
+    fisicaAcumByCentro[r.centro] = (fisicaAcumByCentro[r.centro]||0) + (r.venta||0);
+  });
+  const totalOnlineAcum = Object.values(onlineAcumByCentro).reduce((a,b)=>a+b,0);
+  const totalFisicaAcum = Object.values(fisicaAcumByCentro).reduce((a,b)=>a+b,0);
+  const pctAcum = totalFisicaAcum>0 ? totalOnlineAcum/totalFisicaAcum*100 : null;
+
+  const zonas = groupByZona(rows);
+  let html = `<h2>Venta NTC+NSD · ${region} · ${anio}-${String(mes).padStart(2,'0')} ${exportBtn()}</h2>
+  <table><thead><tr><th>Tienda</th><th>Vta. NTC+NSD €</th><th>% Vta. Tienda</th></tr></thead><tbody>`;
+  let totalOnline = 0, totalFisica = 0;
+  const exportRows = [];
+  Object.keys(zonas).sort().forEach(zona=>{
+    const rowsZona = zonas[zona];
+    rowsZona.sort((a,b)=>b.online-a.online).forEach(r=>{
+      html += `<tr>
+        <td class="left">${tiendaLabel(r)}</td>
+        <td>${r.online.toLocaleString('es-ES',{maximumFractionDigits:0})}</td>
+        <td>${r.pct!==null ? r.pct.toFixed(0)+'%' : '—'}</td>
+      </tr>`;
+      totalOnline += r.online;
+      if(fisicaByCentro[r.centerId]) totalFisica += fisicaByCentro[r.centerId];
+      exportRows.push([`${r.centerId} - ${r.tienda}`, zona, r.online, r.pct]);
+    });
+    const subtotalOnline = rowsZona.reduce((a,r)=>a+r.online,0);
+    const subtotalFisica = rowsZona.reduce((a,r)=>a+(fisicaByCentro[r.centerId]||0),0);
+    const pctZona = subtotalFisica>0 ? subtotalOnline/subtotalFisica*100 : null;
+    html += `<tr class="zona-row"><td class="left">${zona}</td><td>${subtotalOnline.toLocaleString('es-ES',{maximumFractionDigits:0})}</td><td>${pctZona!==null?pctZona.toFixed(0)+'%':'—'}</td></tr>`;
+  });
+  const pctTotal = totalFisica>0 ? totalOnline/totalFisica*100 : null;
+  html += `<tr class="total-row"><td class="left">TOTAL (mes)</td><td>${totalOnline.toLocaleString('es-ES',{maximumFractionDigits:0})}</td><td>${pctTotal!==null?pctTotal.toFixed(1)+'%':'—'}</td></tr>`;
+  html += `<tr class="total-row" style="background:#D0E4F5;"><td class="left">ACUMULADO ${anio} (ene → mes ${mes})</td><td>${totalOnlineAcum.toLocaleString('es-ES',{maximumFractionDigits:0})}</td><td>${pctAcum!==null?pctAcum.toFixed(1)+'%':'—'}</td></tr>`;
+  html += `</tbody></table>
+  <div class="note">% Vta. Tienda = Venta NTC+NSD (online) / Venta física de tienda (EIS). La fila ACUMULADO suma desde enero hasta el mes seleccionado (que por defecto es el último mes cerrado).</div>`;
+  out.innerHTML = html;
+  currentTableData = {
+    headers:['Tienda','Zona','Venta NTC+NSD € (mes)','% Vta. Tienda (mes)'],
+    rows: [...exportRows, ['TOTAL (mes)','', totalOnline, pctTotal], [`ACUMULADO ${anio}`,'', totalOnlineAcum, pctAcum]],
+    filename:`venta_online_${region}.xlsx`
+  };
+}
+
+let evoPanelCollapsed = false;
+let ventaPanelCollapsed = false;
+
+let evoConfig = {
+  showMarkers: true,
+  markerSize: 2,
+  showDataLabels: true,
+  labelSize: 6,
+  labelColorMode: 'custom',
+  labelColor: '#33415C',
+  axisColor: '#33415C',
+  labelPosActual: 'abajo',
+  labelPosAnterior: 'arriba',
+  baseFontSize: 6.5,
+  lineWidth: 1,
+  showGridlines: true,
+  colorActual: '#E74C3C',
+  colorAnterior: '#6FCF56',
+  showObjetivo: true,
+  objetivoValue: 100,
+  colorObjetivo: '#33415C',
+  yMin: '',
+  yMax: '',
+  xAxisTitle: 'Mes',
+  yAxisTitle: 'Media %pedido'
+};
+
+function renderEvolucion(out, region, anioBase){
+  if(dataGraficas.length===0){
+    out.innerHTML = '<div class="empty">Sube el archivo de gráficas (Metabase 34413) para ver esta pestaña.</div>';
+    currentTableData = null;
+    return;
+  }
+  const metricas = [
+    {key:'p10', label:'PEDIDO DE 10', icono:'🔟'},
+    {key:'pc', label:'PEDIDO COMPLETO', icono:'🛒'},
+    {key:'pe', label:'PEDIDO EN PERFECTO ESTADO', icono:'🥬'},
+    {key:'at', label:'PEDIDO A TIEMPO Y BIEN ATENDIDO', icono:'⏰'},
+  ];
+
+  function serieAnio(anio){
+    const arr = [];
+    for(let mes=1; mes<=12; mes++){
+      const row = dataGraficas.find(r=>r.anio===anio && r.mes===mes && r.region===region);
+      arr.push(row || null);
+    }
+    return arr;
+  }
+  const serieActual = serieAnio(anioBase);
+  const serieAnterior = serieAnio(anioBase-1);
+
+  const configPanelHtml = `
+    <div class="panel" style="margin-bottom:16px; background:#FAFBFA;">
+      <h2 style="margin-bottom:10px; cursor:pointer;" id="cfg-toggle-evo">
+        Opciones de la gráfica
+        <span id="cfg-toggle-evo-icon" style="font-size:12px; color:#888;">${evoPanelCollapsed ? '▸ mostrar' : '▾ ocultar'}</span>
+      </h2>
+      <div id="cfg-body-evo" style="${evoPanelCollapsed ? 'display:none;' : ''}">
+      <div class="controls" style="gap:18px;">
+        <label><input type="checkbox" id="cfg-markers" ${evoConfig.showMarkers?'checked':''}> Marcadores de dato</label>
+        <label>Tamaño marcador: <input type="number" id="cfg-marker-size" value="${evoConfig.markerSize}" min="1" max="10" step="0.5" style="width:55px;"></label>
+        <label>Grosor línea: <input type="number" id="cfg-line-width" value="${evoConfig.lineWidth}" min="0.5" max="5" step="0.25" style="width:55px;"></label>
+        <label><input type="checkbox" id="cfg-gridlines" ${evoConfig.showGridlines?'checked':''}> Líneas de cuadrícula</label>
+        <label>Color ${anioBase}: <input type="color" id="cfg-color-actual" value="${evoConfig.colorActual}"></label>
+        <label>Color ${anioBase-1}: <input type="color" id="cfg-color-anterior" value="${evoConfig.colorAnterior}"></label>
+        <label><input type="checkbox" id="cfg-objetivo" ${evoConfig.showObjetivo?'checked':''}> Línea de objetivo</label>
+        <label>Valor objetivo: <input type="number" id="cfg-objetivo-valor" value="${evoConfig.objetivoValue}" style="width:70px;"></label>
+        <label>Color objetivo: <input type="color" id="cfg-color-objetivo" value="${evoConfig.colorObjetivo}"></label>
+      </div>
+      <div class="controls" style="gap:18px; margin-top:8px;">
+        <label><input type="checkbox" id="cfg-labels" ${evoConfig.showDataLabels?'checked':''}> Etiquetas con el valor</label>
+        <label>Tamaño etiqueta: <input type="number" id="cfg-label-size" value="${evoConfig.labelSize}" min="6" max="16" step="0.5" style="width:55px;"></label>
+        <label>Color etiqueta:
+          <select id="cfg-label-color-mode">
+            <option value="linea" ${evoConfig.labelColorMode==='linea'?'selected':''}>Igual que la línea</option>
+            <option value="custom" ${evoConfig.labelColorMode==='custom'?'selected':''}>Fijo</option>
+          </select>
+        </label>
+        <label><input type="color" id="cfg-label-color" value="${evoConfig.labelColor}" ${evoConfig.labelColorMode!=='custom'?'disabled':''}></label>
+        <label>Posición etiqueta ${anioBase}:
+          <select id="cfg-label-pos-actual">
+            <option value="arriba" ${evoConfig.labelPosActual==='arriba'?'selected':''}>Arriba</option>
+            <option value="centro" ${evoConfig.labelPosActual==='centro'?'selected':''}>Centro</option>
+            <option value="abajo" ${evoConfig.labelPosActual==='abajo'?'selected':''}>Abajo</option>
+          </select>
+        </label>
+        <label>Posición etiqueta ${anioBase-1}:
+          <select id="cfg-label-pos-anterior">
+            <option value="arriba" ${evoConfig.labelPosAnterior==='arriba'?'selected':''}>Arriba</option>
+            <option value="centro" ${evoConfig.labelPosAnterior==='centro'?'selected':''}>Centro</option>
+            <option value="abajo" ${evoConfig.labelPosAnterior==='abajo'?'selected':''}>Abajo</option>
+          </select>
+        </label>
+        <label>Tamaño texto (ejes/leyenda): <input type="number" id="cfg-base-font" value="${evoConfig.baseFontSize}" min="6" max="16" step="0.5" style="width:55px;"></label>
+        <label>Color texto (ejes/leyenda): <input type="color" id="cfg-axis-color" value="${evoConfig.axisColor}"></label>
+      </div>
+      <div class="controls" style="gap:18px; margin-top:8px;">
+        <label>Título eje X: <input type="text" id="cfg-x-title" value="${evoConfig.xAxisTitle}" style="width:100px;"></label>
+        <label>Título eje Y: <input type="text" id="cfg-y-title" value="${evoConfig.yAxisTitle}" style="width:100px;" placeholder="(vacío)"></label>
+        <label>Eje Y mín.: <input type="number" id="cfg-y-min" value="${evoConfig.yMin}" style="width:70px;" placeholder="auto"></label>
+        <label>Eje Y máx.: <input type="number" id="cfg-y-max" value="${evoConfig.yMax}" style="width:70px;" placeholder="auto"></label>
+        <button class="btn primary" id="cfg-aplicar">Aplicar</button>
+      </div>
+      </div>
+    </div>`;
+
+  function drawMiniChart(metricKey, label){
+    const w=460, h=230, padL=42, padR=20, padT=32, padB=32;
+    const valsA = serieActual.map(r=>r?r[metricKey]:null);
+    const valsB = serieAnterior.map(r=>r?r[metricKey]:null);
+    const allVals = [...valsA, ...valsB].filter(v=>v!==null && v!==undefined);
+    if(allVals.length===0) return {svg:'<div class="empty" style="padding:12px">Sin datos</div>', diff:null};
+
+    let minV = evoConfig.yMin!=='' && evoConfig.yMin!==null ? Number(evoConfig.yMin) : Math.floor(Math.min(...allVals)-1);
+    let maxV = evoConfig.yMax!=='' && evoConfig.yMax!==null ? Number(evoConfig.yMax) : Math.ceil(Math.max(...allVals)+1);
+    if(evoConfig.showObjetivo){
+      minV = Math.min(minV, evoConfig.objetivoValue - 1);
+      maxV = Math.max(maxV, evoConfig.objetivoValue + 1);
+    }
+    // Inset horizontal: enero y diciembre no quedan pegados a los ejes
+    const insetX = 18;
+    const plotW = w - padL - padR - insetX*2;
+    const x = i => padL + insetX + i*(plotW/11);
+    const y = v => padT + (h-padT-padB) - ((v-minV)/((maxV-minV)||1))*(h-padT-padB);
+
+    const nTicks = 4;
+    let axisSvg = '';
+    for(let t=0;t<=nTicks;t++){
+      const v = minV + (maxV-minV)*t/nTicks;
+      const yy = y(v);
+      if(evoConfig.showGridlines){
+        axisSvg += `<line x1="${padL}" y1="${yy}" x2="${w-padR}" y2="${yy}" stroke="#E5E5E5" stroke-width="1" stroke-dasharray="2,3"></line>`;
+      }
+      axisSvg += `<text x="${padL-6}" y="${yy+3}" font-size="${evoConfig.baseFontSize}" text-anchor="end" fill="${evoConfig.axisColor}">${v.toFixed(0)}</text>`;
+    }
+    for(let i=0;i<12;i++){
+      axisSvg += `<text x="${x(i)}" y="${h-padB+14}" font-size="${evoConfig.baseFontSize}" text-anchor="middle" fill="${evoConfig.axisColor}">${i+1}</text>`;
+    }
+    axisSvg += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${h-padB}" stroke="#BBB" stroke-width="1"></line>`;
+    axisSvg += `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#BBB" stroke-width="1"></line>`;
+    if(evoConfig.xAxisTitle){
+      axisSvg += `<text x="${(padL+w-padR)/2}" y="${h-4}" font-size="${evoConfig.baseFontSize}" text-anchor="middle" fill="${evoConfig.axisColor}">${evoConfig.xAxisTitle}</text>`;
+    }
+    if(evoConfig.yAxisTitle){
+      axisSvg += `<text x="10" y="${(padT+h-padB)/2}" font-size="${evoConfig.baseFontSize}" text-anchor="middle" fill="${evoConfig.axisColor}" transform="rotate(-90,10,${(padT+h-padB)/2})">${evoConfig.yAxisTitle}</text>`;
+    }
+    if(evoConfig.showObjetivo){
+      const yo = y(evoConfig.objetivoValue);
+      axisSvg += `<line x1="${padL}" y1="${yo}" x2="${w-padR}" y2="${yo}" stroke="${evoConfig.colorObjetivo}" stroke-width="1.5" stroke-dasharray="5,4"></line>`;
+      axisSvg += `<text x="${w-padR}" y="${yo-4}" font-size="${evoConfig.baseFontSize}" text-anchor="end" fill="${evoConfig.colorObjetivo}">Objetivo</text>`;
+    }
+
+    function pathFor(vals, color, pos){
+      let d='', dots='', labels='';
+      vals.forEach((v,i)=>{
+        if(v===null||v===undefined) return;
+        d += (d===''?'M':'L') + x(i) + ',' + y(v) + ' ';
+        if(evoConfig.showMarkers) dots += `<circle cx="${x(i)}" cy="${y(v)}" r="${evoConfig.markerSize}" fill="#fff" stroke="${color}" stroke-width="${evoConfig.lineWidth}"></circle>`;
+        if(evoConfig.showDataLabels){
+          const offset = evoConfig.labelSize*1.3 + evoConfig.markerSize + 6;
+          let ly, baseline;
+          if(pos === 'centro'){ ly = y(v); baseline='middle'; }
+          else if(pos === 'arriba'){ ly = y(v)-offset+8; baseline='auto'; }
+          else { ly = y(v)+offset; baseline='auto'; }
+          const labelColor = evoConfig.labelColorMode === 'custom' ? evoConfig.labelColor : color;
+          labels += `<text x="${x(i)}" y="${ly}" font-size="${evoConfig.labelSize}" font-weight="700" text-anchor="middle" dominant-baseline="${baseline}" fill="${labelColor}">${v.toFixed(2).replace('.',',')}</text>`;
+        }
+      });
+      return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${evoConfig.lineWidth}"></path>${dots}${labels}`;
+    }
+
+    const colorActual = evoConfig.colorActual;
+    const colorAnterior = evoConfig.colorAnterior;
+
+    let svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; background:#fff;">`;
+    svg += `<circle cx="${padL+4}" cy="10" r="5" fill="${colorActual}"></circle><text x="${padL+13}" y="14" font-size="${evoConfig.baseFontSize+1}" fill="${evoConfig.axisColor}">${anioBase}</text>`;
+    svg += `<circle cx="${padL+55}" cy="10" r="5" fill="${colorAnterior}"></circle><text x="${padL+64}" y="14" font-size="${evoConfig.baseFontSize+1}" fill="${evoConfig.axisColor}">${anioBase-1}</text>`;
+    svg += axisSvg;
+    svg += pathFor(valsB, colorAnterior, evoConfig.labelPosAnterior);
+    svg += pathFor(valsA, colorActual, evoConfig.labelPosActual);
+    svg += `</svg>`;
+
+    // MEJOR/PEOR: solo el último mes CERRADO (no el mes en curso si aún no ha terminado)
+    const hoy = new Date();
+    let ultimoMesCerrado = 12;
+    if(anioBase === hoy.getFullYear()){
+      ultimoMesCerrado = hoy.getMonth(); // getMonth() es 0-based => equivale al nº del mes anterior al actual
+    }
+    let diff = null, valMesCerradoActual = null;
+    if(ultimoMesCerrado >= 1){
+      const idx = ultimoMesCerrado - 1; // índice 0-based dentro del array de 12 meses
+      const vA = valsA[idx], vB = valsB[idx];
+      if(vA!==null && vA!==undefined && vB!==null && vB!==undefined){
+        diff = vA - vB;
+        valMesCerradoActual = vA;
+      }
+    }
+    return {svg, diff, ultimo: valMesCerradoActual, mesCerrado: ultimoMesCerrado};
+  }
+
+  let html = configPanelHtml;
+  html += `<h2>Servicio ${region} ('${String(anioBase).slice(2)} vs '${String(anioBase-1).slice(2)}) ${exportBtn()}</h2>
+    <div class="cards" style="grid-template-columns:repeat(2,1fr);">`;
+
+  const exportRows = [];
+  metricas.forEach(m=>{
+    const {svg, diff, ultimo, mesCerrado} = drawMiniChart(m.key, m.label);
+    const mejor = diff!==null && diff>=0;
+    const flecha = diff===null ? '' : (mejor ? '▲' : '▼');
+    const color = diff===null ? '#888' : (mejor ? '#00AB61' : '#C00000');
+    html += `<div class="card">
+      <h3>${m.icono} ${m.label}</h3>
+      <div class="chart-copy-target" id="chart-${m.key}">${svg}</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:12px;">
+        <button class="btn" onclick="zoomChart(document.getElementById('chart-${m.key}').innerHTML)">🔍 Ampliar</button>
+        <span style="color:${color}; font-weight:700;">${flecha} ${diff===null?'—':(mejor?'MEJOR':'PEOR')} ${diff===null?'':(diff>=0?'+':'')+diff.toFixed(2)}</span>
+        <span style="color:#888;">Mes ${mesCerrado||'—'} (${anioBase}): ${ultimo!==undefined&&ultimo!==null?ultimo.toFixed(2)+'%':'—'}</span>
+      </div>
+    </div>`;
+    exportRows.push([m.label, diff, ultimo]);
+  });
+  html += `</div>
+  <div class="note">La leyenda de años va dentro de cada gráfica (para copiarla tal cual a la diapositiva). El indicador MEJOR/PEOR queda fuera del gráfico, solo como referencia en pantalla. Fuente: Metabase 34413 (a nivel de pedido, solo tiendas veteranas).</div>`;
+  out.innerHTML = html;
+  currentTableData = { headers:['Métrica','Diferencia vs año anterior','Último valor'], rows: exportRows, filename:`evolucion_${region}.xlsx` };
+
+    document.getElementById('cfg-label-color-mode').addEventListener('change', function(){
+      document.getElementById('cfg-label-color').disabled = this.value !== 'custom';
+    });
+  document.getElementById('cfg-toggle-evo').addEventListener('click', ()=>{
+    evoPanelCollapsed = !evoPanelCollapsed;
+    render();
+  });
+  document.getElementById('cfg-aplicar').addEventListener('click', ()=>{
+    evoConfig.showMarkers = document.getElementById('cfg-markers').checked;
+    evoConfig.markerSize = Number(document.getElementById('cfg-marker-size').value);
+    evoConfig.lineWidth = Number(document.getElementById('cfg-line-width').value);
+    evoConfig.showDataLabels = document.getElementById('cfg-labels').checked;
+    evoConfig.labelSize = Number(document.getElementById('cfg-label-size').value);
+    evoConfig.labelColorMode = document.getElementById('cfg-label-color-mode').value;
+    evoConfig.labelColor = document.getElementById('cfg-label-color').value;
+    evoConfig.baseFontSize = Number(document.getElementById('cfg-base-font').value);
+    evoConfig.axisColor = document.getElementById('cfg-axis-color').value;
+    evoConfig.labelPosActual = document.getElementById('cfg-label-pos-actual').value;
+    evoConfig.labelPosAnterior = document.getElementById('cfg-label-pos-anterior').value;
+    evoConfig.showGridlines = document.getElementById('cfg-gridlines').checked;
+    evoConfig.colorActual = document.getElementById('cfg-color-actual').value;
+    evoConfig.colorAnterior = document.getElementById('cfg-color-anterior').value;
+    evoConfig.showObjetivo = document.getElementById('cfg-objetivo').checked;
+    evoConfig.objetivoValue = Number(document.getElementById('cfg-objetivo-valor').value);
+    evoConfig.colorObjetivo = document.getElementById('cfg-color-objetivo').value;
+    evoConfig.xAxisTitle = document.getElementById('cfg-x-title').value;
+    evoConfig.yAxisTitle = document.getElementById('cfg-y-title').value;
+    evoConfig.yMin = document.getElementById('cfg-y-min').value;
+    evoConfig.yMax = document.getElementById('cfg-y-max').value;
+    render();
+  });
+}
+
+window.exportCurrentTable = exportCurrentTable;
+</script>
+
+</body>
+</html>

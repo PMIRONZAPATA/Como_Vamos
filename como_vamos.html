@@ -1454,6 +1454,7 @@ function renderEvolucion(out, region, anioBase, anioComparar){
   }
 
   let html = configPanelHtml;
+  html += `<div style="margin-bottom:10px;"><a href="https://metabase.prod.monline/dashboard/1885-indicadores-2025-tiendas-veteranas?tab=542-regi%C3%B3n---hist%C3%B3rico&regi%25C3%25B3n=${region}&zona=Z25&tienda=4354" target="_blank" style="color:#00AB61; font-weight:600; font-size:13px;">↗ Ver/copiar gráficas ya hechas en el Cuadro de Mando de Metabase</a></div>`;
   html += `<h2>Servicio ${region} ('${String(anioBase).slice(2)} vs '${String(anioComparar).slice(2)}) ${exportBtn()}</h2>
     <div class="cards" style="grid-template-columns:repeat(2,1fr);">`;
 

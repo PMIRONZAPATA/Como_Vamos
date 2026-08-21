@@ -1040,7 +1040,7 @@ function renderNacional(out, rowsMes, regionSel){
     const rowClass = reg===regionSel ? 'selected-row' : '';
     html += `<tr class="${rowClass}">
       <td class="left">${reg}</td>
-      <td class="${cellClass(lns,objetivos.lns*100)}">${fmtPct(lns)}</td>
+      <td class="${cellClass(lns,objetivos.lns)}">${fmtPct(lns)}</td>
       <td class="${cellClass(pc,objetivos.pc)}">${fmtPct(pc)}</td>
       <td class="${cellClass(pe,objetivos.pe)}">${fmtPct(pe)}</td>
       <td class="${cellClass(ret,objetivos.ret)}">${fmtPct(ret)}</td>
@@ -1054,7 +1054,7 @@ function renderNacional(out, rowsMes, regionSel){
   exportRows.push(['TOTAL', totLns, totPc, totPe, totRet, totAt, totProd]);
   html += `<tr class="total-row">
     <td class="left">TOTAL</td>
-    <td class="${cellClass(totLns,objetivos.lns*100)}">${fmtPct(totLns)}</td>
+    <td class="${cellClass(totLns,objetivos.lns)}">${fmtPct(totLns)}</td>
     <td class="${cellClass(totPc,objetivos.pc)}">${fmtPct(totPc)}</td>
     <td class="${cellClass(totPe,objetivos.pe)}">${fmtPct(totPe)}</td>
     <td class="${cellClass(totRet,objetivos.ret)}">${fmtPct(totRet)}</td>
@@ -1098,7 +1098,7 @@ function renderTarjetas(out, rowsMes, region){
 
   let html = `<h2>Servicio · ${region} vs Media (tiendas veteranas) ${exportBtn()}</h2><div class="cards">
     <div class="card"><h3>Pedido completo</h3>
-      ${row('LNS', lns, lnsMedia, objetivos.lns*100, '%')}
+      ${row('LNS', lns, lnsMedia, objetivos.lns, '%')}
       ${row('Pendientes', pend, pendMedia, null, '', 0)}
       ${row('Inputs Jefe', pc, pcMedia, objetivos.pc, '%')}
     </div>
@@ -1149,7 +1149,7 @@ function renderTiendaServicio(out, rowsMes, region){
       const lns=r.lns*100, ret=r.ret*100;
       html += `<tr>
         <td class="left">${tiendaLabel(r)}</td>
-        <td class="${cellClass(lns,objetivos.lns*100)}">${fmtPct(lns)}</td>
+        <td class="${cellClass(lns,objetivos.lns)}">${fmtPct(lns)}</td>
         <td class="${cellClass(r.pc,objetivos.pc)}">${fmtPct(r.pc)}</td>
         <td class="${cellClass(r.pe,objetivos.pe)}">${fmtPct(r.pe)}</td>
         <td class="${cellClass(ret,objetivos.ret)}">${fmtPct(ret)}</td>
@@ -1166,7 +1166,7 @@ function renderTiendaServicio(out, rowsMes, region){
     const prod = avg(rowsZona.map(r=>r.prod));
     html += `<tr class="zona-row">
       <td class="left">${zona}</td>
-      <td class="${cellClass(lns,objetivos.lns*100)}">${fmtPct(lns)}</td>
+      <td class="${cellClass(lns,objetivos.lns)}">${fmtPct(lns)}</td>
       <td class="${cellClass(pc,objetivos.pc)}">${fmtPct(pc)}</td>
       <td class="${cellClass(pe,objetivos.pe)}">${fmtPct(pe)}</td>
       <td class="${cellClass(ret,objetivos.ret)}">${fmtPct(ret)}</td>
